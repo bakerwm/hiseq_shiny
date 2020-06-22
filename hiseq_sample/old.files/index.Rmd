@@ -1,0 +1,80 @@
+---
+title: "填写HiSeq样本信息单"
+author: "Ming Wang"
+runtime: shiny
+output: html_document
+# output: BiocStyle::html_document
+---
+
+
+```{r setup, echo = FALSE}
+suppressPackageStartupMessages(library(knitr))
+
+knitr::opts_chunk$set(fig.width  = 12, 
+                      fig.height = 8, 
+                      fig.path   = "Figures/",
+                      eval       = TRUE,
+                      echo       = FALSE,
+                      cache      = FALSE,
+                      prompt     = FALSE,
+                      tidy       = FALSE,
+                      comment    = NA,
+                      message    = FALSE,
+                      warning    = FALSE,
+                      rownames.print = FALSE)
+```
+
+
+```{r}
+library(hiseqr)
+library(readr)
+library(readxl)
+library(tidyr)
+library(dplyr)
+library(markdown)
+library(ggplot2)
+library(DT)
+library(shiny)
+library(shinyWidgets)
+# source("data/sample_sheet.R")
+```
+
+
+
+
+```{r}
+# The App
+shinyApp(
+  
+  ui = navbarPage(
+    title = NULL,
+    
+    # nav bar 
+    tabPanel(
+      title = "检查表单",
+      
+      includeMarkdown("readme_autofix_0.md"),
+      
+      fluidRow(
+        plotOutput("demo")
+      )
+    ),
+  ),
+  
+  server = function(input, output, session) {
+    output$demo = renderPlot({
+      plot(1:10)
+    })
+    
+  },
+  
+  options = list(height = 4000)
+)
+```
+
+
+
+
+
+
+**END**

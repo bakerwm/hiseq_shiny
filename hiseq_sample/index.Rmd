@@ -1,0 +1,212 @@
+---
+title: "填写HiSeq样本信息单"
+author: "Ming Wang"
+runtime: shiny
+output: html_document
+---
+
+
+```{r setup, echo = FALSE}
+suppressPackageStartupMessages(library(knitr))
+
+knitr::opts_chunk$set(fig.width  = 12, 
+                      fig.height = 8, 
+                      fig.path   = "Figures/",
+                      eval       = TRUE,
+                      echo       = FALSE,
+                      cache      = FALSE,
+                      prompt     = FALSE,
+                      tidy       = FALSE,
+                      comment    = NA,
+                      message    = FALSE,
+                      warning    = FALSE,
+                      rownames.print = FALSE)
+```
+
+
+```{r}
+library(hiseqr)
+library(readr)
+library(readxl)
+library(tidyr)
+library(dplyr)
+library(markdown)
+library(ggplot2)
+library(DT)
+library(shiny)
+library(shinyWidgets)
+source("data/functions.R")
+```
+
+
+```{r}
+# The App
+shinyApp(
+  
+  ui = navbarPage(
+    title = "HiSeq",
+    
+    tabPanel(
+      title = "检查表单",
+      
+      fluidRow(
+        column(7,
+               includeMarkdown("readme_autofix_0.md")
+        ),
+        
+        column(5,
+               fluidPage(
+                 column(5,
+                        downloadButton("download_data", "Template")
+                 ),
+                 
+                 column(7,
+                        fileInput("upload", NULL,
+                                  buttonLabel = "Upload",
+                                  multiple    = FALSE,
+                                  placeholder = "Excel file", #"eg: YY12_20200401j_WM_RNAseq.xlsx",
+                                  width       = "100%",
+                                  accept      = c("text/xls",
+                                                  "text/xlsx",
+                                                  ".xls",
+                                                  ".xlsx")))
+               )
+        )
+      ),
+      
+      # table
+      fluidRow(
+        DT::dataTableOutput("table_autofix_status")
+      ),
+      
+      # check
+      fluidRow(
+        column(12,
+               includeMarkdown("readme_autofix_3.md")
+        )
+      ),
+
+      fluidRow(
+        DT::dataTableOutput("table_autofix")
+      )
+    ),
+    
+    tabPanel(
+      title = "样本名称",
+      
+      includeMarkdown("readme_samplename.md"),
+      
+      DT::dataTableOutput("table_autofix_samplename")
+    ),
+    
+    tabPanel(
+      title = "Index",
+      
+      includeMarkdown("readme_index.md"),
+      DT::dataTableOutput("table_index_mut"),
+      plotOutput("index_heatmap")
+    )
+  ),
+  
+  server = function(input, output, session) {
+    
+    # download template
+    output$download_data <- downloadHandler(
+      filename = function() {
+        d <- format(Sys.Date(), "%Y%m%d")
+        paste0("YY00_", d, "_YY_RNAseq.xlsx")
+      },
+      content = function(file) {
+        # file.copy("data/YY00_20200401_YY_RNAseq.xlsx", file)
+        file.copy("data/YY00_20200621_YY_RNAseq.xlsx", file)
+      },
+      contentType = "application/xlsx"
+    )
+    
+    # get upload
+    get_upload <- function() {
+      if(is.null(input$upload)) {
+        # infile <- "data/YY00_20200401_YY_RNAseq.xlsx"
+        infile <- "data/YY00_20200621_YY_RNAseq.xlsx"
+      } else {
+        infile <- input$upload$datapath
+      }
+      infile
+    }
+    
+    # parse hiseq list from hiseqr package
+    hiseq_index <- system.file("data", "hiseq_index.rds", package = "hiseqr")
+    
+    # autofix - status
+    output$table_autofix_status <- renderDataTable({
+      df <- hiseqr::sheet_load(get_upload(), autofix = TRUE, 
+                               index_list = hiseq_index)
+      pd <- hiseqr::sheet_check(df, hiseq_index)
+      to_DT_table(pd$msg)
+    })
+    
+    # autofix
+    output$table_autofix <- DT::renderDataTable({
+      df <- hiseqr::sheet_load(get_upload(), index_list = hiseq_index) %>%
+        dplyr::select(lib_number:barcode_id)
+
+      to_DT_table(df, editable = TRUE, pageLength = 50, dom = "Bfrtip")
+    })
+    
+    # names fixed
+    output$table_autofix_samplename <- DT::renderDataTable({
+      df1 <- hiseqr::sheet_load(get_upload(), autofix = FALSE, index_list = hiseq_index)
+      
+      df2 <- hiseqr::sheet_autofix(df1)
+      df1 <- hiseqr::sheet_load(get_upload(), autofix = FALSE, index_list = hiseq_index) %>%
+        dplyr::select(sample_name) %>%
+        dplyr::rename(input = sample_name)
+      df2 <- hiseqr::sheet_load(get_upload(), autofix = TRUE, index_list = hiseq_index) %>%
+        dplyr::select(sample_name) %>%
+        dplyr::rename(fixed = sample_name)
+      
+      # only difference
+      df3 <- dplyr::bind_cols(df1, df2) %>%
+        dplyr::filter(! input == fixed)
+      
+      # hiseqr::get_DT_table(df3, mode = 1, pageLength = 50)
+      to_DT_table(df3, pageLength = 50, dom = "Bfrtip")
+    })
+    
+    # index check
+    output$index_heatmap <- renderPlot({
+      df <- hiseqr::sheet_load(get_upload(), index_list = hiseq_index)
+      get_index_mut_heatmap(df$p7_index_id, 2)
+    })
+    
+    
+    output$table_index_mut <- DT::renderDataTable({
+      hiseq_index <- load_index() # available index
+      df <- hiseqr::sheet_load(get_upload(), index_list = hiseq_index)
+      df2 <- get_index_mut_table(df$p7_index_id, 2) %>%
+        dplyr::filter(score <= 2) %>%
+        dplyr::mutate(x = as.character(x),
+                      y = as.character(y)) %>%
+        dplyr::mutate(x.seq = hiseq_index[x],
+                      y.seq = hiseq_index[y]) %>%
+        tidyr::unite(index_x, c(x, x.seq), sep = " :") %>%
+        tidyr::unite(index_y, c(y, y.seq), sep = " :")
+      to_DT_table(df2, editable = TRUE, pageLength = 50, dom = "t")
+    })
+    
+    output$plot <- renderPlot({
+      plot(1:10)
+    })
+  },
+  
+  options = list(height = 4000)
+)
+```
+
+
+
+
+
+
+**END**
+

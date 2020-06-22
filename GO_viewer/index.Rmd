@@ -1,0 +1,192 @@
+---
+title: ""
+author: ""
+runtime: shiny
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+suppressPackageStartupMessages(library(knitr))
+
+knitr::opts_chunk$set(fig.width  = 12, 
+                      fig.height = 8, 
+                      fig.path   = "Figures/",
+                      eval       = TRUE,
+                      echo       = FALSE,
+                      cache      = FALSE,
+                      prompt     = FALSE,
+                      tidy       = FALSE,
+                      comment    = NA,
+                      message    = FALSE,
+                      warning    = FALSE,
+                      rownames.print = FALSE)
+```
+
+
+```{r}
+library(shiny)
+library(shinyWidgets)
+library(dplyr)
+library(ggvenn)
+library(hiseqr)
+library(ggplot2)
+library(plotly)
+```
+
+
+```{r}
+# demo data
+p_demo1 <- ggplot(mtcars, aes(wt, disp)) + geom_point() + ggtitle("Demo plot")
+p_demo2 <- plot_ly(mtcars, x = ~wt, y = ~disp, type = "scatter", mode = "markers")
+
+t_demo1 <- mtcars %>% dplyr::select(1:4)
+
+# global vars
+org_f <- system.file("data", "orgdb_organism.rds", package = "hiseqr")
+organism_full <- readRDS(org_f)
+
+
+```
+
+
+
+```{r}
+## Server-----------
+main_plot <- renderPlot({
+  p_title <- input$input_organism
+  p_labels <- stringr::str_split(input$input_genes, " |,|;|\t", simplify = TRUE)
+  p_labels <- as.character(p_labels)
+  
+  # process labels
+  p <- p_demo1 + 
+    ggtitle(p_title)
+  
+  if(length(p_labels) > 0) {
+    df_label <- mtcars %>% dplyr::sample_n(length(p_labels)) %>%
+      dplyr::mutate(label = p_labels)
+    p <- p +
+      geom_text(data = df_label, aes(x = wt, y = mpg, label = label))
+  }
+  p
+})
+
+distPlot <- renderPlot({
+    # Take a dependency on input$goButton. This will run once initially,
+    # because the value changes from NULL to 0.
+    input$run_button
+
+    # Use isolate() to avoid dependency on input$obs
+    dist <- isolate(rnorm(input$obs))
+    hist(dist)
+  })
+
+
+
+
+
+
+
+
+
+
+
+
+## UI---------------
+navbarPage("GO viewer", 
+           ##---------------##
+           ## Tab1
+           tabPanel("Summary",
+                    sidebarLayout(
+                      sidebarPanel(
+                        
+                        ##--------------##
+                        ## home: genes
+                        textAreaInput("input_genes", "Gene names",
+                                      value = NULL,
+                                      rows = 6,
+                                      placeholder = "输入基因名，例如 piwi aub ago3 ",
+                                      resize = "vertical" ),
+                        
+                        ##--------------##
+                        ## home: organism
+                        selectInput("input_organism", "Choose organism",
+                                    choices = organism_full$orgdb,
+                                    selected = organism_full$orgdb[1],
+                                    multiple = FALSE, selectize = TRUE
+                                ),
+                        
+                        ##--------------##
+                        ## home: type
+                        # checkboxGroupButtons("input_go_kegg", "Run",
+                        #                      choices = c("GO", "KEGG"), 
+                        #                      selected =  "GO",
+                        #                      justified = TRUE,
+                        #                      status = "info",
+                        #                      checkIcon = list(yes = icon("ok", lib = "glyphicon"), 
+                        #                                       no = icon("remove", lib = "glyphicon"))
+                        # )
+                        
+                        ##--------------##
+                        ## home: action
+                        # submitButton("Run", icon("arrow-alt-circle-right")),
+                        actionButton("run_button", "Run", icon("arrow-alt-circle-right")),
+                        helpText("When you click the button above, you should see",
+                                 "the output below update to reflect the value you",
+                                 "entered at the top:"),
+                        sliderInput("obs", "Number of observations", 0, 1000, 500)
+                      ),
+                      ## Main results
+                      mainPanel(
+                        # renderPlot(get_output1()),
+                        # renderPlot(distPlot),
+                        # distPlot(),
+                        # plotOutput(distPlot()),
+                        # distPlot,
+                        main_plot,
+                        renderPlot(p_demo1),
+                        # renderPlotly(p_demo2)
+                      )
+                      
+                    )
+           ),
+           tabPanel("GO",
+                    flowLayout(
+                      varSelectInput("variable", "Variable:", mtcars)
+                    )
+                    ),
+           tabPanel("KEGG"),
+           tabPanel("Table"),
+           tabPanel("Tools")
+)
+```
+
+
+Add content
+
+
+
+```{r, eval = F}
+navbarPage(
+  tabPanel("plot"),
+  
+  navbarMenu("More",
+             tabPanel("Summary"),
+             "---",
+             "Section header",
+             tabPanel("Table")
+  )
+)
+
+```
+
+
+
+
+
+
+
+
+
+
+

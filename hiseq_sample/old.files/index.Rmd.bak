@@ -1,0 +1,421 @@
+---
+title: "填写HiSeq样本信息单"
+author: "Ming Wang"
+runtime: shiny
+output: html_document
+# output: BiocStyle::html_document
+---
+
+
+```{r setup, echo = FALSE}
+suppressPackageStartupMessages(library(knitr))
+
+knitr::opts_chunk$set(fig.width  = 12, 
+                      fig.height = 8, 
+                      fig.path   = "Figures/",
+                      eval       = TRUE,
+                      echo       = FALSE,
+                      cache      = FALSE,
+                      prompt     = FALSE,
+                      tidy       = FALSE,
+                      comment    = NA,
+                      message    = FALSE,
+                      warning    = FALSE,
+                      rownames.print = FALSE)
+```
+
+
+```{r}
+library(hiseqr)
+library(readr)
+library(readxl)
+library(tidyr)
+library(dplyr)
+library(markdown)
+library(ggplot2)
+library(DT)
+library(shiny)
+library(shinyWidgets)
+# source("data/sample_sheet.R")
+```
+
+
+```{r, eval=F}
+input_sheet <- "data/YY37_20190528_LXH_DNAseq.xlsx"
+input_sheet <- normalizePath(input_sheet)
+hiseq_index <- system.file("data", "hiseq_index.rds", package = "hiseqr")
+df <- hiseqr::sheet_load(x = input_sheet)
+pd <- hiseqr::sheet_check(df, hiseq_index)
+```
+
+
+```{rj, eval = F}
+
+get_excel <- function() {
+  if(is.null(input$inputExcel)) {
+    infile <- "data/YY00_20200401_YY_RNAseq.xlsx"
+  } else {
+    infile <- input$inputExcel$datapath
+  }
+  # index
+  hiseq_index <- system.file("data", "hiseq_index.rds", package = "hiseqr")
+  
+  # old
+  df1 <- hiseqr::sheet_load(infile, autofix = FALSE, index_list = hiseq_index) %>% 
+    dplyr::select(sample_name)
+  df2 <- hiseqr::sheet_load(infile, autofix = TRUE, index_list = hiseq_index) %>%
+    dplyr::select(sample_name)
+  
+  # out
+  df3 <- dplyr::bind_cols(df1, df2)
+  colnames(df3) <- c("sample_name", "Suggest")
+  df3 %>%
+    dplyr::filter(! sample_name == Suggest)
+                
+# 
+#   
+#     hiseqr::sheet_load(infile) %>%
+#     dplyr::select(lib_number, lib_user, sample_name, p7_index_id, barcode_id)
+}
+
+
+flowLayout(
+  fixedPage(
+    # includeMarkdown("sample_sheet_intro.md"),
+    fluidRow(
+      column(3, downloadButton("downloadData", "1.Download Template ......")),
+      
+      column(6,
+             # Input: Select a file
+             fileInput("inputExcel", NULL, buttonLabel = "2.Upload Excel",
+                multiple = FALSE, 
+                placeholder = "eg: YY12_20200401j_WM_RNAseq.xlsx", width = "100%",
+                accept = c("text/xls",
+                           "text/xlsx",
+                           ".xls",
+                           ".xlsx"))
+             ),
+      
+      # column(3, actionButton("goButton", "Go!"))
+    ),
+  # main
+  fluidRow(
+    DT::renderDataTable(get_excel())
+  )
+    
+  )
+)
+# 
+# sidebarLayout(
+#   sidebarPanel(
+#     # Input: Select a file
+#       fileInput("inputExcel", "Choose Excel File",
+#                 multiple = FALSE,
+#                 accept = c("text/xls",
+#                            "text/xlsx",
+#                            ".xls",
+#                            ".xlsx")),
+#       actionButton("goButton", "Go!")
+#   ),
+#   mainPanel(
+#     DT::renderDataTable(get_excel())
+#     # DT::renderDataTable(mtcars)
+#     # tableOutput(get_input())
+#   )
+# )
+
+
+
+```
+
+
+```{r, eval = F}
+shinyApp(
+  ui = navbarPage("Index",
+    tabPanel("First page"),
+    tabPanel("Sample name"),
+    tabPanel("Index")
+  ),
+  
+  server = function(input, output, session) {
+    # table - mutations
+    output$table_index_mut <- DT::renderDataTable({
+      hiseqr::get_DT_table(head(mtcars), mode = 2, pageLength = 50)
+    })
+  }
+)
+
+```
+
+
+```{r}
+# extra code
+js <- c(
+  "table.on('key', function(e, datatable, key, cell, originalEvent){",
+  "  var targetName = originalEvent.target.localName;",
+  "  if(key == 13 && targetName == 'body'){",
+  "    $(cell.node()).trigger('dblclick.dt');",
+  "  }",
+  "});",
+  "table.on('keydown', function(e){",
+  "  var keys = [9,13,37,38,39,40];",
+  "  if(e.target.localName == 'input' && keys.indexOf(e.keyCode) > -1){",
+  "    $(e.target).trigger('blur');",
+  "  }",
+  "});",
+  "table.on('key-focus', function(e, datatable, cell, originalEvent){",
+  "  var targetName = originalEvent.target.localName;",
+  "  var type = originalEvent.type;",
+  "  if(type == 'keydown' && targetName == 'input'){",
+  "    if([9,37,38,39,40].indexOf(originalEvent.keyCode) > -1){",
+  "      $(cell.node()).trigger('dblclick.dt');",
+  "    }",
+  "  }",
+  "});"
+)
+
+to_DT_table <- function(df, editable = FALSE, pageLength = 10, dom = "t") {
+  DT::datatable(
+    df,
+    selection = "none",
+    editable = editable, 
+    callback = JS(js),
+    # extensions = "KeyTable",
+    extensions = 'Buttons',
+    options = list(
+      keys = TRUE,
+      pageLength = pageLength,
+      scrollX = TRUE,
+      dom = dom, # 'Bfrtip', # "t"
+      buttons =
+        list('copy', 
+             list(extend = 'collection',
+                  buttons = c('excel', 'csv'),
+                  text = 'Download'))))
+}
+
+```
+
+
+
+```{r, eval = T}
+
+ui = navbarPage("Navbar!",
+  tabPanel("Plot",
+    sidebarLayout(
+      sidebarPanel(
+        radioButtons("plotType", "Plot type",
+          c("Scatter"="p", "Line"="l")
+        )
+      ),
+      mainPanel(
+        plotOutput("plot")
+      )
+    )
+  )
+)
+
+server = function(input, output, session) {
+  output$plot <- renderPlot({
+    plot(cars, type=input$plotType)
+  })
+
+  output$summary <- renderPrint({
+    summary(cars)
+  })
+
+  output$table <- DT::renderDataTable({
+    DT::datatable(cars)
+  })
+}
+```
+
+
+
+
+```{r, eval = F}
+# The App
+shinyApp(
+
+  ui = navbarPage(
+    title = NULL, #"HiSeq Index",
+    
+    # nav bar 
+    tabPanel("tab1",
+             
+             fluidRow(
+               column(7, 
+                      includeMarkdown("readme_autofix_0.md")
+               ),
+               
+               column(5,
+                      downloadButton("download_data", "1.Download a template"),
+                      
+                      fileInput("upload", NULL,
+                                buttonLabel = "2.Upload",
+                                multiple    = FALSE,
+                                placeholder = "eg: YY12_20200401j_WM_RNAseq.xlsx",
+                                width       = "100%",
+                                accept      = c("text/xls",
+                                                "text/xlsx",
+                                                ".xls",
+                                                ".xlsx"))
+               ),
+             ),
+             
+             # table
+             fluidRow(
+               dataTableOutput("table_autofix_status")
+             ),
+             
+             fluidRow(
+               includeMarkdown("readme_autofix_3.md"), 
+               dataTableOutput("table_autofix_status")
+             )
+    ),
+
+    tabPanel("tab2")
+      
+    ),
+
+  
+  server = function(input, output, session) {
+    # download template
+    output$download_data <- downloadHandler(
+      filename = function() {
+        d <- format(Sys.Date(), "%Y%m%d")
+        paste0("YY00_", d, "_YY_RNAseq.xlsx")
+      },
+      content = function(file) {
+        # write.csv(mtcars, file, row.names = FALSE)
+        # writexl::write_xlsx(mtcars, file)
+        file.copy("data/YY00_20200401_YY_RNAseq.xlsx", file)
+      },
+      contentType = "application/xlsx"
+    )
+    
+    # check upload
+    get_upload <- function() {
+      if(is.null(input$upload)) {
+        infile <- "data/YY00_20200401_YY_RNAseq.xlsx"
+      } else {
+        infile <- input$upload$datapath
+      }
+      infile
+    }
+    
+    # parse hiseq list from hiseqr package
+    hiseq_index <- system.file("data", "hiseq_index.rds", package = "hiseqr")
+    
+    # autofix - status
+    output$table_autofix_status <- renderDataTable({
+      df <- hiseqr::sheet_load(get_upload(), autofix = TRUE, index_list = hiseq_index)
+      pd <- hiseqr::sheet_check(df, hiseq_index)
+      to_DT_table(pd$msg)
+    })
+    
+    # autofix
+    output$table_autofix <- DT::renderDataTable({
+      df <- hiseqr::sheet_load(get_upload(), index_list = hiseq_index) %>%
+        dplyr::select(lib_number:barcode_id)
+      # hiseqr::get_DT_table(mtcars, mode = 1, pageLength = 50)
+      
+      to_DT_table(df, editable = TRUE, pageLength = 50)
+    })
+    
+    # auto table
+    output$table_autofix_samplename <- DT::renderDataTable({
+      df1 <- hiseqr::sheet_load(get_upload(), autofix = FALSE, index_list = hiseq_index) %>%
+        dplyr::select(sample_name) %>%
+        dplyr::rename(input = sample_name)
+      df2 <- hiseqr::sheet_load(get_upload(), autofix = TRUE, index_list = hiseq_index) %>%
+        dplyr::select(sample_name) %>%
+        dplyr::rename(fixed = sample_name)
+      
+      # only difference
+      df3 <- dplyr::bind_cols(df1, df2) %>%
+        dplyr::filter(! input == fixed)
+      
+      hiseqr::get_DT_table(df3, mode = 1, pageLength = 50)
+    })
+    
+    # mutation plot
+    output$plot_index_mut = renderPlot({
+      plot(1:10)
+    })
+    
+    # table - mutations
+    output$table_index_mut <- DT::renderDataTable({
+      hiseqr::get_DT_table(head(mtcars), mode = 2, pageLength = 50)
+    })
+    
+    # table - full
+    output$table_index_full_trueseq <- DT::renderDataTable({
+      hiseqr::get_DT_table(head(mtcars), mode = 2, pageLength = 50)
+    })
+    
+    output$table_index_full_nextera <- DT::renderDataTable({
+      hiseqr::get_DT_table(head(mtcars), mode = 2, pageLength = 50)
+    })
+    
+  },
+  
+  options = list(height = 4000)
+)
+
+```
+
+
+
+```{r, eval = F}
+  ui = navbarPage(
+    NULL, #"HiSeq Index",
+    
+    # nav bar 
+    tabPanel(title = "HOME",
+             
+             fluidRow(
+               column(7, 
+                      includeMarkdown("readme_autofix_0.md")
+               ),
+               
+               column(5,
+                      downloadButton("download_data", "1.Download a template"),
+               ),
+               
+               column(6,
+                      fileInput("upload", NULL,
+                                buttonLabel = "2.Upload",
+                                multiple    = FALSE,
+                                placeholder = "eg: YY12_20200401j_WM_RNAseq.xlsx",
+                                width       = "100%",
+                                accept      = c("text/xls",
+                                                "text/xlsx",
+                                                ".xls",
+                                                ".xlsx"))
+               ),
+             ),
+             
+             # table
+             fluidRow(
+               dataTableOutput("table_autofix_status")
+             ),
+             
+             fluidRow(
+               includeMarkdown("readme_autofix_3.md"), 
+               dataTableOutput("table_autofix_status"),
+             )
+    ),
+  ),
+```
+
+
+
+
+
+
+
+
+
+
+**END**

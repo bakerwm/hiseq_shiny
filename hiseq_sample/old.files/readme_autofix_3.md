@@ -1,0 +1,23 @@
+
+</br>
+
+**完善表单**
+
+**第1步** 下表中不满足预期，可以双击单元格进行修改    
+
+**第2步** 点击表单左上角的 `Download`下载，将相关内容粘贴`信息单`    
+
+**第3步** 将修改后的表单，粘贴到步骤2的信息单中，完成表达填写   
+
+**第4步** 最后还需要填写实验设计，
+
+<!--
+**Step5**. Have a try, **double click** the cell, where you want to make changes.
+
+**Step6**. After that, download the following table (`Download` -> `Excel`).  
+
+**Step7**. Copy columns from `Lib_number` to `Lib_type`, Paste to the file in **Step2**.  
+
+**Step8**. Save the File. Done!
+
+-->

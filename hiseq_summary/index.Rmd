@@ -1,0 +1,164 @@
+---
+title: "HiSeq Summary"
+author: "Ming Wang"
+runtime: shiny
+output: html_document
+---
+
+
+```{r setup, echo = FALSE}
+suppressPackageStartupMessages(library(knitr))
+
+knitr::opts_chunk$set(fig.width  = 12, 
+                      fig.height = 8, 
+                      fig.path   = "Figures/",
+                      eval       = TRUE,
+                      echo       = FALSE,
+                      cache      = FALSE,
+                      prompt     = FALSE,
+                      tidy       = FALSE,
+                      comment    = NA,
+                      message    = FALSE,
+                      warning    = FALSE,
+                      rownames.print = FALSE)
+```
+
+
+```{r}
+library(hiseqr)
+library(readr)
+library(readxl)
+library(tidyr)
+library(dplyr)
+library(markdown)
+library(ggplot2)
+library(DT)
+library(shiny)
+library(shinyWidgets)
+library(patchwork)
+library(shinyWidgets)
+source("data/functions.R")
+```
+
+
+```{r}
+# The App
+shinyApp(
+  
+  ui = navbarPage(
+    title = "HiSeq",
+    
+    tabPanel(
+      title = "Summary",
+      
+      plotOutput("lib_number_timeline"),
+      
+      includeMarkdown("readme_summary_0.md"),
+      
+      # table
+      DT::dataTableOutput("table_lib_number"),
+
+      includeMarkdown("readme_summary_1.md"),
+      
+      DT::dataTableOutput("table_lib_user")
+    ),
+    
+    tabPanel(
+      title = "测序类型统计",
+      
+      fluidRow(
+        includeMarkdown("readme_summary_2.md")
+      ),
+      
+      
+      fluidRow(
+        prettyCheckboxGroup("year1", "Year", 
+                            choices = c("2017" = 2017,
+                                        "2018" = 2018,
+                                        "2019" = 2019,
+                                        "2020" = 2020), 
+                            selected = c("2017", "2018", "2019", "2020"),
+                            shape = "round", 
+                            animation = "smooth", 
+                            inline = TRUE, 
+                            bigger = TRUE
+        )
+      ),
+      
+      plotOutput("user_vs_lib_type")
+    ),
+    
+    tabPanel(
+      title = "每个人的文库统计",
+      
+      includeMarkdown("readme_summary_3.md"),
+      
+      fluidRow(
+        prettyCheckboxGroup("year2", "Year", 
+                            choices = c("2017" = 2017,
+                                        "2018" = 2018,
+                                        "2019" = 2019,
+                                        "2020" = 2020), 
+                            selected = c("2017", "2018", "2019", "2020"),
+                            shape = "round", 
+                            animation = "smooth", 
+                            inline = TRUE, 
+                            bigger = TRUE
+        )
+      ),
+      
+      plotOutput("user_per_lib_type")
+    )
+  ),
+  
+  server = function(input, output, session) {
+    
+    # tables
+    output$table_lib_number <- DT::renderDataTable({
+      df <- readRDS("data/db.summary.lib_user_fixed.rds")
+      df1 <- table_lib_number_date(df) %>%
+        dplyr::arrange(desc(lib_number))
+      to_DT_table(df1, pageLength = 5, dom = "Bfrtip")
+    })
+    
+    # tables
+    output$table_lib_user <- DT::renderDataTable({
+      df <- readRDS("data/db.summary.lib_user_fixed.rds")
+      df1 <- table_lib_user(df) %>%
+        dplyr::arrange(desc(count))
+      to_DT_table(df1, pageLength = 20, dom = "Bfrtip")
+    })
+    
+    # plot
+    output$lib_number_timeline <- renderPlot({
+      df <- readRDS("data/db.summary.lib_user_fixed.rds")
+      plot_timeline_lib_number(df, "x")
+    })
+    
+    # plot
+    output$user_vs_lib_type <- renderPlot({
+      df <- readRDS("data/db.summary.lib_user_fixed.rds") %>%
+        dplyr::filter(format(date, "%Y") %in% input$year1)
+      plot_user_vs_lib_type(df)
+    })
+    
+    # plot
+    output$user_per_lib_type <- renderPlot({
+      df <- readRDS("data/db.summary.lib_user_fixed.rds") %>%
+        dplyr::filter(format(date, "%Y") %in% input$year2)
+      plot_user_seq_type(df)
+    })
+    
+  },
+  
+  options = list(height = 4000)
+)
+```
+
+
+
+
+
+
+**END**
+
